@@ -2,12 +2,12 @@
 # This file defines all application routes (Higher priority routes first)
 # ~~~~
 
-POST          /mockability/*x                  controllers.MockController.prepare(x)
-DELETE        /mockability/*x                  controllers.MockController.clear(x)
-GET           /mockability/*x                  controllers.MockController.report(x)
+POST          /mockability/*x        controllers.MockController.prepare(x)
+DELETE        /mockability/*x        controllers.MockController.clear(x)
+GET           /mockability/*x        controllers.MockController.report(x)
 
-HEAD          /*x                              controllers.MockController.respond(x)
-GET           /*x                              controllers.MockController.respond(x)
-PUT           /*x                              controllers.MockController.respond(x)
-DELETE        /*x                              controllers.MockController.respond(x)
-POST          /*x                              controllers.MockController.respond(x)
+HEAD          /*x                    controllers.MockController.respond(x)
+GET           /*x                    controllers.MockController.respond(x)
+PUT           /*x                    controllers.MockController.respond(x)
+DELETE        /*x                    controllers.MockController.respond(x)
+POST          /*x                    controllers.MockController.respond(x)

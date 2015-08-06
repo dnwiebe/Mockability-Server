@@ -160,6 +160,17 @@ class MockControllerTest extends path.FunSpec {
         }
       }
 
+      describe ("and then sent a universal 'clear' order") {
+        val request = FakeRequest ("DELETE", "/mockability")
+        val response = subject.clear (null) (request)
+
+        it ("responds with a 200 and a newly cleared list") {
+          val content = contentAsString (response)
+          assert (content === "")
+          assert (status (response) === 200)
+        }
+      }
+
       describe ("and then sent a 'clear' order for that URI") {
         val request = FakeRequest ("DELETE", "/mockability/get/wurbly/woo?a=b&c=d")
         val response = subject.clear (null) (request)

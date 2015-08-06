@@ -26,35 +26,53 @@ trait MockController {
   private val recordedResponses = scala.collection.mutable.Map[Differentiator, RecordValue] ()
 
   def prepare (ignored: String) = Action {request =>
-    val (method, uri) = extractMethodAndUri (request)
-    request.body.asJson match {
-      case Some (jsValue) => {
-        recordResponses (method, uri, request, jsValue)
-        Ok (makeResponseBody (recordedResponses))
+    extractMethodAndUri (request) match {
+      case None => TEST_DRIVE_ME
+      case Some ((method, uri)) => {
+        request.body.asJson match {
+          case Some (jsValue) => {
+            recordResponses (method, uri, request, jsValue)
+            Ok (makeResponseBody (recordedResponses))
+          }
+          case None => BadRequest (makeBadPrepareResponseBody (request.body.asText))
+        }
       }
-      case None => BadRequest (makeBadPrepareResponseBody (request.body.asText))
     }
   }
 
   def clear (ignored: String) = Action {request =>
-    val (method, uri) = extractMethodAndUri (request)
-    recordedResponses.remove (Differentiator (request.remoteAddress, method.toUpperCase, uri))
+    extractMethodAndUri (request) match {
+      case None => {
+        val toRemove = recordedResponses.filter {pair =>
+          val (key, _) = pair
+          key.ip == request.remoteAddress
+        }.keys
+        toRemove.foreach {key => recordedResponses.remove (key)}
+      }
+      case Some ((method, uri)) => {
+        recordedResponses.remove (Differentiator (request.remoteAddress, method.toUpperCase, uri))
+      }
+    }
     Ok (makeResponseBody (recordedResponses))
   }
 
   def report (ignored: String) = Action {request =>
-    val (method, uri) = extractMethodAndUri (request)
-    recordedResponses.get (Differentiator (request.remoteAddress, method, uri)) match {
-      case Some (recordValue) => {
-        val jsRecordedRequests = recordValue.requests.map {_.toJson}
-        val wrappers = jsRecordedRequests.map {Json.toJsFieldJsValueWrapper(_)}
-        Ok (Json.arr (wrappers:_*))
-      }
-      case None => {
-        Result (
-          header = ResponseHeader (499, Map (CONTENT_TYPE -> "text/plain")),
-          body = Enumerator (requestMessage499 (request).getBytes)
-        )
+    extractMethodAndUri (request) match {
+      case None => TEST_DRIVE_ME
+      case Some ((method, uri)) => {
+        recordedResponses.get (Differentiator (request.remoteAddress, method, uri)) match {
+          case Some (recordValue) => {
+            val jsRecordedRequests = recordValue.requests.map {_.toJson}
+            val wrappers = jsRecordedRequests.map {Json.toJsFieldJsValueWrapper(_)}
+            Ok (Json.arr (wrappers:_*))
+          }
+          case None => {
+            Result (
+              header = ResponseHeader (499, Map (CONTENT_TYPE -> "text/plain")),
+              body = Enumerator (requestMessage499 (request).getBytes)
+            )
+          }
+        }
       }
     }
   }
@@ -76,11 +94,16 @@ trait MockController {
     }
   }
 
-  private def extractMethodAndUri[T] (request: Request[T]): (String, String) = {
+  private def extractMethodAndUri[T] (request: Request[T]): Option[(String, String)] = {
     val components = request.uri.toString.split ("/", 4)
-    val method = components(2)
-    val uri = components(3)
-    (method, uri)
+    if (components.length < 4) {
+      None
+    }
+    else {
+      val method = components(2)
+      val uri = components(3)
+      Some ((method, uri))
+    }
   }
 
   private def responseMessage499[T] (request: Request[T]): String = {
@@ -96,16 +119,20 @@ trait MockController {
   }
 
   private def requestMessage499[T] (request: Request[T]): String = {
-    val (method, uri) = extractMethodAndUri (request)
-    val demand = Differentiator (request.remoteAddress, method, uri)
-    val recordings: Seq[Differentiator] = sortedDifferentiators (recordedResponses)
-      .filter {recordedResponses(_).requests.nonEmpty}
-    val demandText = s"\nReport was demanded for:\n${demand}\n\n"
-    val recordingText = "Reports are prepared only for:\n" + (recordings match {
-      case ps if ps.isEmpty => "No reports were prepared."
-      case ps => ps.map {p => s"${p} (${recordedResponses (p).requests.size})"}.mkString ("\n")
-    })
-    demandText + recordingText + "\n"
+    extractMethodAndUri (request) match {
+      case None => TEST_DRIVE_ME
+      case Some ((method, uri)) => {
+        val demand = Differentiator (request.remoteAddress, method, uri)
+        val recordings: Seq[Differentiator] = sortedDifferentiators (recordedResponses)
+          .filter {recordedResponses(_).requests.nonEmpty}
+        val demandText = s"\nReport was demanded for:\n${demand}\n\n"
+        val recordingText = "Reports are prepared only for:\n" + (recordings match {
+          case ps if ps.isEmpty => "No reports were prepared."
+          case ps => ps.map {p => s"${p} (${recordedResponses (p).requests.size})"}.mkString ("\n")
+        })
+        demandText + recordingText + "\n"
+      }
+    }
   }
 
   private def retrieveNextRecordedResponse (differentiator: Differentiator): Option[RecordedResponse] = {
